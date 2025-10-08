@@ -1,5 +1,9 @@
-passlib==1.7.4
-python_jose==3.4.0
+# requirements.txt (mínimo para FastAPI + SQLAlchemy + MySQL en Render)
 fastapi
 uvicorn[standard]
-sqlalchemy
+python-multipart
+pydantic>=2
+SQLAlchemy
+PyMySQL
+python-jose[cryptography]
+passlib[bcrypt]
