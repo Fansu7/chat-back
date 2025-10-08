@@ -9,8 +9,8 @@ from typing import Optional
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-SECRET_KEY = 'SUPERSECRETKEY'
-ALGORITHM = 'HS256'
+SECRET_KEY = AUTH_KEY
+ALGORITHM = ALG_ENV
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 def get_user_by_username(db: Session, username: str):
