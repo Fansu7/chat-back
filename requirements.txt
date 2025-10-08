@@ -1,2 +1,5 @@
 passlib==1.7.4
 python_jose==3.4.0
+fastapi
+uvicorn[standard]
+sqlalchemy
