@@ -6,11 +6,12 @@ from model import User
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from typing import Optional
+import os
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-SECRET_KEY = AUTH_KEY
-ALGORITHM = ALG_ENV
+SECRET_KEY = os.getenv("AUTH_KEY")
+ALGORITHM = os.getenv("ALG_ENV")
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 def get_user_by_username(db: Session, username: str):
