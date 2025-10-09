@@ -13,9 +13,14 @@ app = FastAPI()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 origin = ["http://localhost:4200"]
 
+ALLOWED_ORIGINS = [
+    "https://fansu7.github.io",
+    "http://localhost:4200",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origin,
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
