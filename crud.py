@@ -13,7 +13,7 @@ def create_user(db: Session, user: UserCreate):
 
 
 def create_message(db: Session, sender_id: int, message: MessageCreate):
-    db_msg = Message(sender_id=sender_id, receiver_id=message.receiver_id, content=message.content, sender_nickname=get_user_by_username)
+    db_msg = Message(sender_id=sender_id, receiver_id=message.receiver_id, content=message.content)
     db.add(db_msg)
     db.commit()
     db.refresh(db_msg)
