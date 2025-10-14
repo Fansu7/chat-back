@@ -25,6 +25,7 @@ class Message(Base):
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
     sender_id = Column(Integer, ForeignKey("users.id"))
+    sender_nickname = Column(Text, nullable=False)
     receiver_id = Column(Integer, ForeignKey("users.id"))
     is_read = Column(Boolean, default=False)
     
