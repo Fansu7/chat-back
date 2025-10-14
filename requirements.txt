@@ -6,4 +6,5 @@ pydantic>=2
 SQLAlchemy
 PyMySQL
 python-jose[cryptography]
-passlib[bcrypt]
+passlib
+bcrypt==4.3.0
