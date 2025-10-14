@@ -11,7 +11,7 @@ from auth import get_current_user
 
 app = FastAPI()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-origin = ["http://localhost:4200"]
+origin = ["http://localhost:4200", "https://fansu7.github.io/pychat_front", "https://fansu7.github.io"]
 
 app.add_middleware(
     CORSMiddleware,
