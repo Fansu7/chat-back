@@ -15,6 +15,7 @@ class UserOut(BaseModel):
         from_attributes = True
 
 class MessageCreate(BaseModel):
+    sender_nickname: str
     receiver_id: int
     content: str
 
