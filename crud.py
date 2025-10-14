@@ -17,7 +17,7 @@ def create_message(db: Session, sender_id: int, message: MessageCreate):
     db.add(db_msg)
     db.commit()
     db.refresh(db_msg)
-    return db_msg
+    return MessageOut.from_orm_with_nickname(db_msg)
 
 def get_messages_between_users(db: Session, user1_id: int, user2_id: int):
     messages = db.query(Message).filter(
