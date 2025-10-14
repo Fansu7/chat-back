@@ -15,6 +15,7 @@ class UserOut(BaseModel):
         from_attributes = True
 
 class MessageCreate(BaseModel):
+    sender_nickname: str
     receiver_id: int
     content: str
 
@@ -24,6 +25,7 @@ class MessageOut(BaseModel):
     receiver_id: int
     content: str
     timestamp: datetime
+    sender_nickname: str
 
     @classmethod
     def from_orm_with_nickname(cls, message: Message):
