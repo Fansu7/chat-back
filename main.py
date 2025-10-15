@@ -110,12 +110,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                     content=content,
                 )
                 db_msg = crud.create_message(db, sender_id=user_id, message=msg_in)
-                try:
-                    out = schemas.MessageOut.from_orm_with_nickname(db_msg)
-                except Exception:
-                    out = db_msg
 
-                payload_out = out.model_dump() 
+                payload_out = db_msg.model_dump() 
 
                 if receiver_id in active_connections:
                     dead = []
