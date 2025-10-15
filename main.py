@@ -105,13 +105,25 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 if not content:
                     continue
 
+                # DEBUG: lo que entra
+                print("[WS IN]", "from", user_id, "to", receiver_id, "content:", content)
+
                 msg_in = schemas.MessageCreate(
                     receiver_id=receiver_id,
                     content=content,
                 )
                 db_msg = crud.create_message(db, sender_id=user_id, message=msg_in)
 
-                payload_out = db_msg.model_dump() 
+                payload_out = db_msg.model_dump()
+
+                # DEBUG: lo que voy a emitir
+                print("[WS OUT PAYLOAD]", payload_out)
+
+                # DEBUG: estado de conexiones antes de emitir
+                print("[WS OUT -> receiver]", receiver_id, "sockets:",
+                      len(active_connections.get(receiver_id, [])))
+                print("[WS OUT -> sender]", user_id, "sockets:",
+                      len(active_connections.get(user_id, [])))
 
                 if receiver_id in active_connections:
                     dead = []
