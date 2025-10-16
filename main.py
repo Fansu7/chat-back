@@ -86,7 +86,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
                 user_record = db_lookup.query(User).filter(User.id == int(user_id)).first()
 
         user_id = int(user_id)
-        sender_nickname = getattr(user_record, "nickname", None)
+        sender_nickname = (getattr(user_record, "nickname", None) 
+                   or getattr(user_record, "username", None) 
+                   or f"User{user_id}")
+
     except JWTError:
         await websocket.close(code=1008)
         return
