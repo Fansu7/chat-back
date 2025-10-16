@@ -66,6 +66,7 @@ active_connections: Dict[int, Set[WebSocket]] = {}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str):
+    # Autenticación por token -> user_id
     try:
         payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         user_id = payload.get("userId")
@@ -74,88 +75,56 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             if not username:
                 await websocket.close(code=1008)
                 return
-            db_lookup: Session = SessionLocal()
-            try:
+            with SessionLocal() as db_lookup:
                 user = db_lookup.query(User).filter(User.username == username).first()
                 if not user:
                     await websocket.close(code=1008)
                     return
                 user_id = user.id
-            finally:
-                db_lookup.close()
         user_id = int(user_id)
     except JWTError:
         await websocket.close(code=1008)
         return
 
     await websocket.accept()
-    if user_id not in active_connections:
-        active_connections[user_id] = set()
-    active_connections[user_id].add(websocket)
-    print(f"[WebSocket CONNECTED] User {user_id}")
+    active_connections.setdefault(user_id, set()).add(websocket)
 
     db: Session = SessionLocal()
-
     try:
         while True:
-            try:
-                data = await websocket.receive_json()
-                receiver_id = int(data["receiver_id"])
-                content = (data.get("content") or "").strip()
-                if not content:
-                    continue
+            data = await websocket.receive_json()
 
-                # DEBUG: lo que entra
-                print("[WS IN]", "from", user_id, "to", receiver_id, "content:", content, flush=True)
+            receiver_id = data.get("receiver_id")
+            content = (data.get("content") or "").strip()
+            if receiver_id is None or not content:
+                continue
+            receiver_id = int(receiver_id)
 
-                msg_in = schemas.MessageCreate(
-                    receiver_id=receiver_id,
-                    content=content,
+            db_msg = crud.create_message(
+                db, sender_id=user_id, message=schemas.MessageCreate(
+                    receiver_id=receiver_id, content=content
                 )
-                db_msg = crud.create_message(db, sender_id=user_id, message=msg_in)
+            )
+            payload_out = db_msg.model_dump()
 
-                payload_out = db_msg.model_dump()
+            for ws in list(active_connections.get(receiver_id, [])):
+                try:
+                    await ws.send_json(payload_out)
+                except Exception:
+                    active_connections[receiver_id].discard(ws)
 
-                # DEBUG: lo que voy a emitir
-                print("[WS OUT PAYLOAD]", payload_out, flush=True)
-
-                # DEBUG: estado de conexiones antes de emitir
-                print("[WS OUT -> receiver]", receiver_id, "sockets:",
-                      len(active_connections.get(receiver_id, [])), flush=True)
-                print("[WS OUT -> sender]", user_id, "sockets:",
-                      len(active_connections.get(user_id, [])), flush=True)
-
-                if receiver_id in active_connections:
-                    dead = []
-                    for ws in list(active_connections[receiver_id]):
-                        try:
-                            await ws.send_json(payload_out)
-                        except Exception:
-                            dead.append(ws)
-                    for ws in dead:
-                        active_connections[receiver_id].discard(ws)
-
-                dead_self = []
-                for ws in list(active_connections.get(user_id, [])):
-                    try:
-                        await ws.send_json(payload_out)
-                    except Exception:
-                        dead_self.append(ws)
-                for ws in dead_self:
-                    active_connections[user_id].discard(ws)
-
-                print(f"[WebSocket LOG] from {user_id} to {receiver_id} - msg {payload_out.get('id')}")
-
-            except Exception as e:
-                print(f"[WebSocket ERROR] {e}")
-                break
+            # Eco al emisor
+            try:
+                await websocket.send_json(payload_out)
+            except Exception:
+                pass
 
     except WebSocketDisconnect:
-        print(f"[WebSocket DISCONNECTED] User {user_id}")
+        pass
     finally:
         db.close()
         conns = active_connections.get(user_id)
-        if conns and websocket in conns:
+        if conns:
             conns.discard(websocket)
             if not conns:
                 active_connections.pop(user_id, None)
