@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from model import Base, User
 from typing import Dict
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 import crud, schemas, auth
 from auth import get_current_user
 from jose import jwt, JWTError 
@@ -61,31 +61,37 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         "access_token": auth.create_access_token(data={"sub": user.username, "userId": user.id}, expires_delta=access_token_expires), "token_type": "bearer"}
 
 
-
 active_connections: Dict[int, Set[WebSocket]] = {}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str):
-    # Autenticación por token -> user_id
+    # --- Auth: JWT -> user_id ---
     try:
         payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         user_id = payload.get("userId")
-        if user_id is None:
-            username = payload.get("sub")
-            if not username:
-                await websocket.close(code=1008)
-                return
-            with SessionLocal() as db_lookup:
-                user = db_lookup.query(User).filter(User.username == username).first()
-                if not user:
+        user_record = None
+
+        with SessionLocal() as db_lookup:
+            if user_id is None:
+                username = payload.get("sub")
+                if not username:
                     await websocket.close(code=1008)
                     return
-                user_id = user.id
+                user_record = db_lookup.query(User).filter(User.username == username).first()
+                if not user_record:
+                    await websocket.close(code=1008)
+                    return
+                user_id = user_record.id
+            else:
+                user_record = db_lookup.query(User).filter(User.id == int(user_id)).first()
+
         user_id = int(user_id)
+        sender_nickname = getattr(user_record, "nickname", None)
     except JWTError:
         await websocket.close(code=1008)
         return
 
+    # --- Conexión activa ---
     await websocket.accept()
     active_connections.setdefault(user_id, set()).add(websocket)
 
@@ -98,26 +104,51 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             content = (data.get("content") or "").strip()
             if receiver_id is None or not content:
                 continue
-            receiver_id = int(receiver_id)
 
+            try:
+                receiver_id = int(receiver_id)
+            except (TypeError, ValueError):
+                continue
+
+            # --- Persistir mensaje ---
             db_msg = crud.create_message(
-                db, sender_id=user_id, message=schemas.MessageCreate(
-                    receiver_id=receiver_id, content=content
+                db,
+                sender_id=user_id,
+                message=schemas.MessageCreate(
+                    receiver_id=receiver_id,
+                    content=content
                 )
             )
-            payload_out = db_msg.model_dump()
 
+            created_at = getattr(db_msg, "created_at", None)
+            if isinstance(created_at, datetime):
+                created_iso = created_at.astimezone(timezone.utc).isoformat()
+            else:
+                created_iso = datetime.now(timezone.utc).isoformat()
+
+            # --- Payload completo para front ---
+            payload_out = {
+                "id": getattr(db_msg, "id", None),
+                "sender_id": user_id,
+                "receiver_id": receiver_id,
+                "content": content,
+                "created_at": created_iso,
+                "sender_nickname": sender_nickname,
+            }
+
+            # Enviar a receptor
             for ws in list(active_connections.get(receiver_id, [])):
                 try:
                     await ws.send_json(payload_out)
                 except Exception:
-                    active_connections[receiver_id].discard(ws)
+                    active_connections.get(receiver_id, set()).discard(ws)
 
-            # Eco al emisor
-            try:
-                await websocket.send_json(payload_out)
-            except Exception:
-                pass
+            # Eco a TODAS las conexiones del emisor (p.ej. varias pestañas)
+            for ws in list(active_connections.get(user_id, [])):
+                try:
+                    await ws.send_json(payload_out)
+                except Exception:
+                    active_connections.get(user_id, set()).discard(ws)
 
     except WebSocketDisconnect:
         pass
